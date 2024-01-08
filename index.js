@@ -11,6 +11,11 @@ let sticks = [];
 let score = 0;
 
 //CONFIGURATION
+const stretchingSpeed = 4; //Milliseconds it takes to draw a pixel
+const turningSpeed = 4; // Milliseconds it takes to turn a degree
+const walkingSpeed = 4;
+const transitioningSpeed = 2;
+const fallingSpeed = 2;
 
 //Get canvas element
 const canvas = document.getElementById("game");
@@ -90,17 +95,15 @@ function draw() {
     { x: 50, w: 50 },
     { x: 90, w: 30 },
   ];
-  let sticks = [
-    { x: 100, length: 50, rotation: 60 }
-  ];
+  let sticks = [{ x: 100, length: 50, rotation: 60 }];
 
   function drawPlatforms() {
     platforms.forEach(({ x, w }) => {
-        //Draw platform
-        ctx.fillStyle = "black";
-        ctx.fillRect(x, canvasHeight - platformHeight, w, platformHeight);
+      //Draw platform
+      ctx.fillStyle = "black";
+      ctx.fillRect(x, canvasHeight - platformHeight, w, platformHeight);
     });
-  };
+  }
 
   function drawHero() {
     const heroWidth = 20;
@@ -108,31 +111,32 @@ function draw() {
 
     ctx.fillStyle = "red";
     ctx.fillRect(
-        heroX,
-        heroY + canvasHeight - platformHeight - heroHeight,
-        heroWidth,
-        heroHeight
-    )};
+      heroX,
+      heroY + canvasHeight - platformHeight - heroHeight,
+      heroWidth,
+      heroHeight
+    );
+  }
 
-    function drawSticks() {
-        sticks.forEach((stick) => {
-            ctx.save();
+  function drawSticks() {
+    sticks.forEach((stick) => {
+      ctx.save();
 
-            //Move anchor point to the start of the stick and rotate
-            ctx.translate(stick.x, canvasHeight - platformHeight);
-            ctx.rotate((Math.PI / 180) * stick.rotation);
+      //Move anchor point to the start of the stick and rotate
+      ctx.translate(stick.x, canvasHeight - platformHeight);
+      ctx.rotate((Math.PI / 180) * stick.rotation);
 
-            //Draw stick
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, -stick.length);
-            ctx.stroke();
+      //Draw stick
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -stick.length);
+      ctx.stroke();
 
-            //Restore transformations
-            ctx.restore();
-        });
-    };
+      //Restore transformations
+      ctx.restore();
+    });
+  }
 
   //Save the current transformation
   ctx.save();
@@ -150,27 +154,123 @@ function draw() {
 }
 
 window.addEventListener("mousedown", function (ev) {
-    ev.preventDefault();
-    if (phase === "waiting") {
-        phase = "stretching";
-        lastTimestamp = undefined;
-        window.requestAnimationFrame(animate);
-    }
+  ev.preventDefault();
+  if (phase === "waiting") {
+    phase = "stretching";
+    lastTimestamp = undefined;
+    window.requestAnimationFrame(animate);
+  }
 });
 
 window.addEventListener("mouseup", function (ev) {
-    ev.preventDefault();
-    if (phase === "stretching") {
-        phase = "turning";
-    };
+  ev.preventDefault();
+  if (phase === "stretching") {
+    phase = "turning";
+  }
 });
 
-restartButton.addEventListener("click", function (ev){
-    resetGame();
-    restartButton.style.display = "none";
+restartButton.addEventListener("click", function (ev) {
+  resetGame();
+  restartButton.style.display = "none";
 });
-
 
 function animate(timeStamp) {
-    
-};
+  function thePlatformTheStickHits() {
+    const lastStick = sticks[sticks.length - 1];
+    const stickFarX = lastStick.x + lastStick.length;
+
+    const platformTheStickHits = platforms.find(
+      (platform) =>
+        platform.x < stickFarX && stickFarX < platform.x + platform.w
+    );
+
+    return platformTheStickHits;
+  }
+
+  if (!lastTimestamp) {
+    //First cycle
+    lastTimestamp = timeStamp;
+    window.requestAnimationFrame(animate);
+    return;
+  }
+
+  let timePassed = timeStamp - lastTimestamp;
+
+  switch (phase) {
+    case "waiting":
+      return; // Stop Looping
+    case "stretching": {
+      sticks[sticks.length - 1].length += timePassed / stretchingSpeed;
+      break;
+    }
+    case "turning": {
+      sticks[sticks.length - 1].rotation += timePassed / turningSpeed;
+
+      if (sticks[sticks.length - 1].rotation >= 90) {
+        sticks[sticks.length - 1].rotation = 90;
+
+        const nextPlatform = thePlatformTheStickHits();
+        if (nextPlatform) {
+          score++;
+          scoreElement.innerText = score;
+
+          generatePlatform();
+        }
+
+        phase = "walking";
+      }
+      break;
+    }
+    case "walking": {
+      heroX += timePassed / walkingSpeed;
+      const nextPlatform = thePlatformTheStickHits();
+      if (nextPlatform) {
+        // If the hero will reach another platform then limit its position at its edge
+        const maxHeroX = nextPlatform.x + nextPlatform.w - 30;
+        if (heroX > maxHeroX) {
+          heroX = maxHeroX;
+          phase = "transitioning";
+        }
+      } else {
+        // If the hero won't reach another platform then limit its position at the end of the pole
+        const maxHeroX =
+          sticks[sticks.length - 1].x + sticks[sticks.length - 1].length;
+        if (heroX > maxHeroX) {
+          heroX = maxHeroX;
+          phase = "falling";
+        }
+      }
+      break;
+    }
+    case "transitioning": {
+      sceneOffset += timePassed / transitioningSpeed;
+      const nextPlatform = thePlatformTheStickHits();
+      if (nextPlatform.x + nextPlatform.w - sceneOffset < 100) {
+        sticks.push({
+          x: nextPlatform.x + nextPlatform.w,
+          length: 0,
+          rotation: 0,
+        });
+        phase = "waiting";
+      }
+      break;
+    }
+    case "falling": {
+      heroY += timePassed / fallingSpeed;
+      if (sticks[sticks.length - 1].rotation < 180) {
+        sticks[sticks.length - 1].rotation += timePassed / turningSpeed;
+      }
+
+      const maxHeroY = platformHeight + 100;
+      if (heroY > maxHeroY) {
+        restartButton.style.display = "block";
+        return;
+      }
+      break;
+    }
+  }
+  draw();
+  lastTimestamp = timeStamp;
+
+  window.requestAnimationFrame(animate);
+}
