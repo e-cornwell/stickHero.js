@@ -90,6 +90,9 @@ function draw() {
     { x: 50, w: 50 },
     { x: 90, w: 30 },
   ];
+  let sticks = [
+    { x: 100, length: 50, rotation: 60 }
+  ];
 
   function drawPlatforms() {
     platforms.forEach(({ x, w }) => {
@@ -109,8 +112,27 @@ function draw() {
         heroY + canvasHeight - platformHeight - heroHeight,
         heroWidth,
         heroHeight
-    );
-  };
+    )};
+
+    function drawSticks() {
+        sticks.forEach((stick) => {
+            ctx.save();
+
+            //Move anchor point to the start of the stick and rotate
+            ctx.translate(stick.x, canvasHeight - platformHeight);
+            ctx.rotate((Math.PI / 180) * stick.rotation);
+
+            //Draw stick
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, -stick.length);
+            ctx.stroke();
+
+            //Restore transformations
+            ctx.restore();
+        });
+    };
 
   //Save the current transformation
   ctx.save();
@@ -127,8 +149,28 @@ function draw() {
   ctx.restore();
 }
 
-window.addEventListener("mousedown", function (event) {});
+window.addEventListener("mousedown", function (ev) {
+    ev.preventDefault();
+    if (phase === "waiting") {
+        phase = "stretching";
+        lastTimestamp = undefined;
+        window.requestAnimationFrame(animate);
+    }
+});
 
-window.addEventListener("mouseup", function (event) {});
+window.addEventListener("mouseup", function (ev) {
+    ev.preventDefault();
+    if (phase === "stretching") {
+        phase = "turning";
+    };
+});
 
-function animate(timeStamp) {}
+restartButton.addEventListener("click", function (ev){
+    resetGame();
+    restartButton.style.display = "none";
+});
+
+
+function animate(timeStamp) {
+    
+};
